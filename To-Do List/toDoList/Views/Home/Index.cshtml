@@ -1,0 +1,532 @@
+﻿@model List<toDoList.Models.TaskItem>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Görev Planlayıcı Pro</title>
+    <!-- Bootstrap 5 CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome ikonları -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Toastr bildirimleri -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <link href="/img/Logo.png" rel="website icon" />
+    <style>
+        :root {
+            --dark-color: #2B2D42;
+            --light-color: #EDF2F4;
+            --accent-color: #EF233C;
+            --secondary-color: #8D99AE;
+        }
+
+        html, body {
+            height: 100%;
+            background-color: var(--light-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* Sayfa düzenini flex yapısına çeviriyoruz */
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header sabit kalacak */
+        .navbar {
+            background-color: var(--dark-color) !important;
+            position: sticky;
+            top: 0;
+            z-index: 1020;
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            color: var(--light-color) !important;
+        }
+
+        /* Ana içerik alanını esnek yapıyoruz */
+        .main-content {
+            flex: 1 0 auto;
+            padding-bottom: 60px; /* Footer yüksekliği kadar boşluk */
+        }
+
+        /* Footer sabit kalacak */
+        footer {
+            background-color: var(--dark-color);
+            color: var(--light-color);
+            padding: 20px 0;
+            flex-shrink: 0;
+            margin-top: auto; /* Footer'ı en alta yapıştırır */
+        }
+
+        .task-card {
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+            margin-bottom: 15px;
+        }
+
+            .task-card:hover {
+                transform: translateY(-3px);
+            }
+
+        .completed {
+            text-decoration: line-through;
+            color: var(--secondary-color);
+        }
+
+        .btn-accent {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+        }
+
+            .btn-accent:hover {
+                background-color: #D90429;
+                color: white;
+            }
+
+        .filter-btn.active {
+            background-color: var(--dark-color);
+            color: white;
+        }
+
+        .form-floating label {
+            color: var(--secondary-color);
+        }
+
+        .form-control:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 0.25rem rgba(239, 35, 60, 0.25);
+        }
+
+        .stats {
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Checkbox animasyonu */
+        .form-check-input:checked {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+
+        .form-check-input {
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        /* Responsive ayarlar */
+        @@media (max-width: 576px) {
+            .task-actions {
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header - En üstte sabit -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-tasks me-2"></i>Görev Planlayıcı Pro
+            </a>
+        </div>
+    </nav>
+
+    <!-- Ana İçerik -->
+    <div class="main-content">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <!-- Görev Ekleme Formu -->
+                    <div class="card mb-4 task-card mt-3">
+                        <div class="card-body">
+                            <form id="addTaskForm" method="post" action="@Url.Action("AddTask", "Home")">
+                                <div class="form-floating mb-3">
+                                    <input type="text" class="form-control" id="taskInput" name="title" placeholder="Yeni görev ekle" required>
+                                    <label for="taskInput">Yeni görev ekle</label>
+                                </div>
+                                <button type="submit" class="btn btn-accent w-100">
+                                    <i class="fas fa-plus me-2"></i>Görev Ekle
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Filtreleme Butonları -->
+                    <div class="btn-group w-100 mb-4" role="group" style="margin-top:10px;">
+                        <button type="button" class="btn btn-outline-secondary filter-btn active" data-filter="all">
+                            Tümü
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary filter-btn" data-filter="active">
+                            Aktif
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary filter-btn" data-filter="completed">
+                            Tamamlanan
+                        </button>
+                    </div>
+
+                    <!-- İstatistikler -->
+                    <div class="stats mb-4">
+                        <div class="row text-center">
+                            <div class="col-md-6">
+                                <h5>Toplam Görev</h5>
+                                <p class="fs-4" id="totalTasks">@Model.Count</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Kalan Görev</h5>
+                                <p class="fs-4" id="remainingTasks">@Model.Count(t => !t.IsCompleted)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Görev Listesi -->
+                    <div id="taskList">
+                        @foreach (var task in Model)
+                        {
+                            <div class="card task-card mb-3 @(task.IsCompleted ? "completed" : "")" data-task-id="@task.Id" data-status="@(task.IsCompleted ? "completed" : "active")">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="form-check flex-grow-1">
+                                            <form method="post" action="@Url.Action("ToggleTask", "Home")" class="toggle-form">
+                                                <input type="hidden" name="id" value="@task.Id" />
+                                                <input class="form-check-input me-3" type="checkbox" @(task.IsCompleted ? "checked" : "") onchange="this.form.submit()">
+                                                <label class="form-check-label">
+                                                    @task.Title
+                                                </label>
+                                            </form>
+                                        </div>
+                                        <div class="task-actions">
+                                            <button class="btn btn-sm btn-outline-primary edit-btn" data-task-id="@task.Id" data-task-title="@task.Title">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <form method="post" action="@Url.Action("DeleteTask", "Home")" class="d-inline">
+                                                <input type="hidden" name="id" value="@task.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger ms-2">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Görev yoksa mesaj göster -->
+                    @if (!Model.Any())
+                    {
+                        <div class="text-center py-5">
+                            <i class="fas fa-clipboard-list fa-4x mb-3 text-secondary"></i>
+                            <h4>Görev bulunamadı</h4>
+                            <p class="text-muted">Yeni bir görev ekleyerek başlayın</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer - En altta sabit -->
+    <footer>
+        <div class="container text-center">
+            <p class="mb-0">&copy; @DateTime.Now.Year Engin ARSLAN. Tüm hakları saklıdır.</p>
+        </div>
+    </footer>
+
+    <!-- Düzenleme Modalı -->
+    <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Görevi Düzenle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="editTaskForm" method="post" action="@Url.Action("UpdateTask", "Home")">
+                    <div class="modal-body">
+                        <input type="hidden" id="editTaskId" name="id">
+                        <div class="form-floating mb-3">
+                            <input type="text" class="form-control" id="editTaskTitle" name="title" placeholder="Görev adı" required>
+                            <label for="editTaskTitle">Görev adı</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-accent">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Kütüphaneleri -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            // Toastr bildirim ayarları
+            toastr.options = {
+                "closeButton": true,
+                "progressBar": true,
+                "positionClass": "toast-bottom-right",
+                "timeOut": "3000"
+            };
+
+            // URL'den mesaj parametresini kontrol et ve toast göster
+            const urlParams = new URLSearchParams(window.location.search);
+            const message = urlParams.get('message');
+            if (message) {
+                toastr.success(message);
+            }
+
+            // Filtreleme butonları
+            $('.filter-btn').click(function () {
+                const filter = $(this).data('filter');
+
+                // Aktif butonu güncelle
+                $('.filter-btn').removeClass('active');
+                $(this).addClass('active');
+
+                // Görevleri filtrele
+                if (filter === 'all') {
+                    $('.task-card').show();
+                } else {
+                    $('.task-card').each(function () {
+                        const status = $(this).data('status');
+                        $(this).toggle(filter === 'all' || filter === status);
+                    });
+                }
+            });
+
+            // Düzenle butonu tıklama
+            $('.edit-btn').click(function () {
+                const taskId = $(this).data('task-id');
+                const taskTitle = $(this).data('task-title');
+
+                $('#editTaskId').val(taskId);
+                $('#editTaskTitle').val(taskTitle);
+
+                // Modalı göster
+                var editModal = new bootstrap.Modal(document.getElementById('editModal'));
+                editModal.show();
+            });
+
+            // Görev ekleme formu doğrulama
+            $('#addTaskForm').submit(function (e) {
+                const taskInput = $('#taskInput').val().trim();
+                if (!taskInput) {
+                    e.preventDefault();
+                    toastr.error('Lütfen bir görev giriniz.');
+                    $('#taskInput').addClass('is-invalid');
+                }
+            });
+
+            // Input hatasını temizle
+            $('#taskInput').on('input', function () {
+                $(this).removeClass('is-invalid');
+            });
+
+            // Sayfa yüklendiğinde localStorage'dan görevleri yükle
+            loadTasksFromLocalStorage();
+
+            // Görev ekleme formu
+            $('#addTaskForm').submit(function (e) {
+                e.preventDefault();
+                const taskTitle = $('#taskInput').val().trim();
+
+                if (taskTitle) {
+                    // Sunucuya gönder
+                    $.post($(this).attr('action'), { title: taskTitle }, function () {
+                        // Sayfayı yenile
+                        window.location.href = '@Url.Action("Index", "Home")?message=Görev başarıyla eklendi';
+                    }).fail(function () {
+                        // Sunucu hatasında localStorage'a kaydet
+                        saveTaskToLocalStorage(taskTitle);
+                        toastr.warning('Sunucuya bağlanılamadı, görev yerel depolamaya kaydedildi.');
+                        $('#taskInput').val('');
+                        updateTaskList();
+                    });
+                } else {
+                    toastr.error('Lütfen bir görev giriniz.');
+                }
+            });
+
+            // Görev durumunu değiştirme
+            $('.toggle-form').submit(function (e) {
+                e.preventDefault();
+                const form = $(this);
+
+                $.post(form.attr('action'), form.serialize(), function () {
+                    window.location.reload();
+                }).fail(function () {
+                    const taskId = form.find('input[name="id"]').val();
+                    toggleTaskStatusInLocalStorage(taskId);
+                    toastr.warning('Sunucuya bağlanılamadı, görev durumu yerel depolamada güncellendi.');
+                    updateTaskList();
+                });
+            });
+
+            // Görev silme
+            $('.task-actions form').submit(function (e) {
+                e.preventDefault();
+                const form = $(this);
+
+                if (confirm('Bu görevi silmek istediğinize emin misiniz?')) {
+                    $.post(form.attr('action'), form.serialize(), function () {
+                        window.location.href = '@Url.Action("Index", "Home")?message=Görev başarıyla silindi';
+                    }).fail(function () {
+                        const taskId = form.find('input[name="id"]').val();
+                        deleteTaskFromLocalStorage(taskId);
+                        toastr.warning('Sunucuya bağlanılamadı, görev yerel depolamadan silindi.');
+                        updateTaskList();
+                    });
+                }
+            });
+
+            // Görev düzenleme
+            $('#editTaskForm').submit(function (e) {
+                e.preventDefault();
+                const form = $(this);
+
+                $.post(form.attr('action'), form.serialize(), function () {
+                    window.location.href = '@Url.Action("Index", "Home")?message=Görev başarıyla güncellendi';
+                }).fail(function () {
+                    const taskId = $('#editTaskId').val();
+                    const newTitle = $('#editTaskTitle').val();
+                    updateTaskInLocalStorage(taskId, newTitle);
+                    toastr.warning('Sunucuya bağlanılamadı, görev yerel depolamada güncellendi.');
+                    $('#editModal').modal('hide');
+                    updateTaskList();
+                });
+            });
+
+            // LocalStorage fonksiyonları
+            function saveTaskToLocalStorage(title) {
+                let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+                const newTask = {
+                    id: Date.now(), // Basit bir ID oluşturma
+                    title: title,
+                    isCompleted: false,
+                    createdDate: new Date().toISOString()
+                };
+                tasks.push(newTask);
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+            }
+
+            function loadTasksFromLocalStorage() {
+                const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+                if (tasks.length > 0) {
+                    // Eğer sunucudan gelen görev yoksa localStorage'dakileri göster
+                    if ($('#taskList .task-card').length === 0) {
+                        renderTasksFromLocalStorage(tasks);
+                    }
+                }
+            }
+
+            function renderTasksFromLocalStorage(tasks) {
+                const taskList = $('#taskList');
+                taskList.empty();
+
+                if (tasks.length === 0) {
+                    taskList.html(`
+                        <div class="text-center py-5">
+                            <i class="fas fa-clipboard-list fa-4x mb-3 text-secondary"></i>
+                            <h4>Görev bulunamadı</h4>
+                            <p class="text-muted">Yeni bir görev ekleyerek başlayın</p>
+                        </div>
+                    `);
+                    return;
+                }
+
+                tasks.forEach(task => {
+                    const taskElement = `
+                        <div class="card task-card mb-3 ${task.isCompleted ? 'completed' : ''}" data-task-id="${task.id}" data-status="${task.isCompleted ? 'completed' : 'active'}">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="form-check flex-grow-1">
+                                        <form method="post" action="@Url.Action("ToggleTask", "Home")" class="toggle-form">
+                                            <input type="hidden" name="id" value="${task.id}" />
+                                            <input class="form-check-input me-3" type="checkbox" ${task.isCompleted ? 'checked' : ''} onchange="toggleLocalStorageTask(${task.id})">
+                                            <label class="form-check-label">
+                                                ${task.title}
+                                            </label>
+                                        </form>
+                                    </div>
+                                    <div class="task-actions">
+                                        <button class="btn btn-sm btn-outline-primary edit-btn" data-task-id="${task.id}" data-task-title="${task.title}">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteLocalStorageTask(${task.id})">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    taskList.append(taskElement);
+                });
+
+                // İstatistikleri güncelle
+                updateStats();
+            }
+
+            function toggleLocalStorageTask(taskId) {
+                let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+                tasks = tasks.map(task => {
+                    if (task.id == taskId) {
+                        task.isCompleted = !task.isCompleted;
+                    }
+                    return task;
+                });
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                updateTaskList();
+            }
+
+            function deleteLocalStorageTask(taskId) {
+                if (confirm('Bu görevi silmek istediğinize emin misiniz?')) {
+                    let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+                    tasks = tasks.filter(task => task.id != taskId);
+                    localStorage.setItem('tasks', JSON.stringify(tasks));
+                    updateTaskList();
+                    toastr.success('Görev silindi.');
+                }
+            }
+
+            function updateTaskInLocalStorage(taskId, newTitle) {
+                let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+                tasks = tasks.map(task => {
+                    if (task.id == taskId) {
+                        task.title = newTitle;
+                    }
+                    return task;
+                });
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                updateTaskList();
+            }
+
+            function updateTaskList() {
+                const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+                renderTasksFromLocalStorage(tasks);
+            }
+
+            function updateStats() {
+                const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+                $('#totalTasks').text(tasks.length);
+                $('#remainingTasks').text(tasks.filter(t => !t.isCompleted).length);
+            }
+
+            // Global fonksiyonlar (inline onclick'ler için)
+            window.toggleLocalStorageTask = toggleLocalStorageTask;
+            window.deleteLocalStorageTask = deleteLocalStorageTask;
+        });
+    </script>
+</body>
+</html>
